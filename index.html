@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESP32 GUI Controller</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #121212;
+      color: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    /* Main GUI Box */
+    .gui-container {
+      background: #1e1e1e;
+      border: 2px solid #444;
+      border-radius: 10px;
+      padding: 24px;
+      width: 420px; /* Widened slightly to fit 4 buttons evenly */
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    }
+    .gui-title {
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-top: 0;
+      margin-bottom: 16px;
+      letter-spacing: 1px;
+      color: #ccc;
+      border-bottom: 1px solid #333;
+      padding-bottom: 8px;
+    }
+    /* Status Screen Box */
+    .status-box {
+      background: #121212;
+      border: 2px solid #333;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 20px;
+      min-height: 70px;
+    }
+    .status-label {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .status-value {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #ff922b;
+      letter-spacing: 1px;
+    }
+    /* Button Layout */
+    .button-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .btn-control {
+      flex: 1;
+      padding: 14px 0;
+      font-size: 0.9rem;
+      font-weight: bold;
+      border: 2px solid #444;
+      border-radius: 6px;
+      background: #2b2b2b;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-control:hover:not(:disabled) {
+      background: #383838;
+      border-color: #666;
+    }
+    .btn-control:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+    .btn-control:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .btn-off:hover:not(:disabled) {
+      border-color: #ff6b6b;
+      color: #ff6b6b;
+    }
+    /* Connect Button */
+    .btn-connect {
+      width: 100%;
+      padding: 12px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      background: #339af0;
+      color: white;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-connect:hover { background: #228be6; }
+    .connection-status {
+      text-align: center;
+      font-size: 0.8rem;
+      margin-top: 10px;
+      color: #ff6b6b;
+    }
+    .connection-status.connected {
+      color: #51cf66;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="gui-container">
+    <div class="gui-title">GUI</div>
+
+    <!-- Status Box -->
+    <div class="status-box">
+      <div class="status-label">Status:</div>
+      <div id="statusValue" class="status-value">OFF (00)</div>
+    </div>
+
+    <!-- 4 Control Buttons: OFF, BLINK, RUN, ALT -->
+    <div class="button-row">
+      <button class="btn-control btn-off" onclick="sendMode('0', 'OFF (00)')" disabled>OFF</button>
+      <button class="btn-control" onclick="sendMode('1', 'BLINK (10)')" disabled>BLINK</button>
+      <button class="btn-control" onclick="sendMode('3', 'RUN (11)')" disabled>RUN</button>
+      <button class="btn-control" onclick="sendMode('2', 'ALT (01)')" disabled>ALT</button>
+    </div>
+
+    <!-- USB Web Serial Connection -->
+    <button id="connectBtn" class="btn-connect" onclick="toggleConnection()">Connect ESP32 (USB)</button>
+    <div id="connStatus" class="connection-status">Disconnected</div>
+  </div>
+
+  <script>
+    let port;
+    let writer;
+    const connectBtn = document.getElementById('connectBtn');
+    const connStatus = document.getElementById('connStatus');
+    const statusValue = document.getElementById('statusValue');
+    const controlButtons = document.querySelectorAll('.btn-control');
+
+    async function toggleConnection() {
+      try {
+        if (!port) {
+          port = await navigator.serial.requestPort();
+          await port.open({ baudRate: 115200 });
+          writer = port.writable.getWriter();
+
+          connStatus.textContent = 'Connected via USB';
+          connStatus.classList.add('connected');
+          connectBtn.textContent = 'Disconnect';
+          controlButtons.forEach(btn => btn.disabled = false);
+        } else {
+          if (writer) {
+            await writer.releaseLock();
+          }
+          await port.close();
+          port = null;
+          writer = null;
+
+          connStatus.textContent = 'Disconnected';
+          connStatus.classList.remove('connected');
+          connectBtn.textContent = 'Connect ESP32 (USB)';
+          controlButtons.forEach(btn => btn.disabled = true);
+          statusValue.textContent = 'OFF (00)';
+        }
+      } catch (err) {
+        alert('Connection error: ' + err.message);
+      }
+    }
+
+    async function sendMode(modeChar, modeName) {
+      if (!writer) return;
+      try {
+        const data = new TextEncoder().encode(modeChar);
+        await writer.write(data);
+        statusValue.textContent = modeName;
+      } catch (err) {
+        console.error('Failed to send command:', err);
+      }
+    }
+  </script>
+
+</body>
+</html>
